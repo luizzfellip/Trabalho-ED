@@ -1,3 +1,11 @@
+
+// 1- modifiquei o tamanho dos registros e a parte da distruibuicao dos arquivos
+// para que aceite o int e o float.
+
+// 2- nao terminei, mas falta implementar o merge sort interno para depois depois
+// fazer o merge multi way.
+
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -6,9 +14,10 @@
 #include <stdexcept>
 using namespace std;
 
-
-// modifiquei o tamanho dos registros e a parte da distruibuicao dos arquivos
-// para que aceite o int e o float.
+	// Definicao do numero de arquivos divididos  e nomes dos arquivos
+	const int numPartes = 12;
+	const string nomeBaseAqr = "parte_F";
+	const string nomeBaseArqOrdenada = "parte_ordenada_F";
 struct Registro
 {
 		char series_reference[10];
@@ -85,20 +94,19 @@ void distribuidor_TCG(ifstream& arqEntradaCSV,ofstream* arqSaidaBin,int numParte
 
 void dividir_CSV_em_PartesBinarias()
 {	
-	
-	// 1. definir partes divididas e abrir arquivo
-	const int numPartes = 12;
-	const string nomeBase = "parte_F";
-	
+
+	// 1. verificar se o arquivo esta na mesma pasta do codigo
 	ifstream arqEntradaCSV("dados_trabalho.csv");
     if (!arqEntradaCSV.is_open()) {
         throw runtime_error("Nao foi possivel abrir o arquivo!");
-    }
+    }else{
+		cout << "Iniciando a divisao dos arquivos!\n";
+	}
 	
 	// 2. criar as partes divididas
 	ofstream* arqSaidaBin = new ofstream[numPartes];
 	for(int i=0; i<numPartes; i++){
-		string nomeArq = nomeBase +  to_string(i) + ".bin";
+		string nomeArq = nomeBaseAqr +  to_string(i) + ".bin";
 		arqSaidaBin[i].open(nomeArq, ios::binary | ios::trunc);
 		
 		if(!arqSaidaBin[i].is_open()){
@@ -127,13 +135,32 @@ void dividir_CSV_em_PartesBinarias()
 
 }
 
+void ordenar_partes_internamente(){
+	cout << "Iniciando a ordenacao interna dos arquivos!\n";
 
+	// 1. criar as partes divididas
+	ofstream* arqSaidaBinOrdenada = new ofstream[numPartes];
+	for(int i=0; i<numPartes; i++){
+		string nomeArq = nomeBaseArqOrdenada +  to_string(i) + ".bin";
+		arqSaidaBin[i].open(nomeArq, ios::binary | ios::trunc);
+		
+		if(!arqSaidaBin[i].is_open()){
+			delete[] arqSaidaBinOrdenada;
+			throw runtime_error("Nao foi possivel criar os arquivos de saida ordenados!");
+		}
+
+		Registro* umRegistro = new Registro[numPartes]; 
+		ifstream arqEntrada()
+	}
+
+}
 
 
 int main ()
 {
 	try{
 	dividir_CSV_em_PartesBinarias();
+	ordenar_partes_internamente();
 	} catch (exception& e) {
 		cout << "Erro: "<< e.what() << endl;
 	}
