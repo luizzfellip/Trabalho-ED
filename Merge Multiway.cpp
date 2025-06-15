@@ -5,29 +5,33 @@
 #include <sstream>
 #include <stdexcept>
 using namespace std;
-const int TAM_MAX = 100;
+
+
+// modifiquei o tamanho dos registros e a parte da distruibuicao dos arquivos
+// para que aceite o int e o float.
 struct Registro
 {
-		char series_reference[TAM_MAX];
-		char period[TAM_MAX];
-		char data_value[TAM_MAX];
-		char status[TAM_MAX];
-		char units[TAM_MAX];
-		char subject[TAM_MAX];
-		char group [TAM_MAX];
-		char series_title_1[TAM_MAX];
-		char series_title_2[TAM_MAX];
-		char series_title_3[TAM_MAX];
-		char series_title_4[TAM_MAX];
-		char series_title_5[TAM_MAX];
+		char series_reference[10];
+		float period;
+		int data_value;
+		char status[10];
+		char units[10];
+		int magnitude;
+		char subject[50];
+		char group [50];
+		char series_title_1[50];
+		char series_title_2[50];
+		char series_title_3[50];
+		char series_title_4[50];
+		char series_title_5[50];
 };
 
-void ler_linha(stringstream& streamLinha, char* destinoReg, char delimitador = ',')
+void ler_linha(stringstream& streamLinha, char* destinoReg,int tamC_max, char delimitador = ',')
 {
 	string campo;
 	getline(streamLinha, campo, delimitador);
-	strncpy(destinoReg, campo.c_str(), TAM_MAX - 1);
-    destinoReg[TAM_MAX - 1] = '\0'; // garantir que o último caractere seja nulo
+	strncpy(destinoReg, campo.c_str(), tamC_max - 1);
+    destinoReg[tamC_max - 1] = '\0'; // garantir que o último caractere seja nulo
 }
 
 //distribui cada linha do texto para um campo do registrador
@@ -37,25 +41,40 @@ void distribuidor_TCG(ifstream& arqEntradaCSV,ofstream* arqSaidaBin,int numParte
 	string linha;
 	
 	while(getline(arqEntradaCSV, linha)){
-		 // cria um arquivo com a variavel linha
+		string campo; // para campos que nao char
+
+		 // cria um "arquivo" com a variavel linha
 		 // para não ocorrer um erro se a linha faltar dado,
 		 // e tem funcao de marcador
 		stringstream streamLinha(linha);
 		 // inicializa a struct com zeros para segurança, antes de preencher
 		 Registro umRegistro = {};
 		 
-        ler_linha(streamLinha, umRegistro.series_reference);
-        ler_linha(streamLinha, umRegistro.period);
-		ler_linha(streamLinha, umRegistro.data_value);
-        ler_linha(streamLinha, umRegistro.status);
-        ler_linha(streamLinha, umRegistro.units);
-        ler_linha(streamLinha, umRegistro.subject);
-        ler_linha(streamLinha, umRegistro.group);
-        ler_linha(streamLinha, umRegistro.series_title_1);
-        ler_linha(streamLinha, umRegistro.series_title_2);
-        ler_linha(streamLinha, umRegistro.series_title_3);
-        ler_linha(streamLinha, umRegistro.series_title_4);
-		ler_linha(streamLinha, umRegistro.series_title_5, '\n'); // o último campo não tem vírgula
+		 // campo char: series_reference
+        ler_linha(streamLinha, umRegistro.series_reference,sizeof(umRegistro.series_reference));
+
+		//  campo float: period
+        getline(streamLinha, campo, ',');
+		umRegistro.period = campo.empty() ? -1.0f : stof(campo); // verifica se esta vazio, transforma string em float
+
+		// campo int: data_value
+		getline(streamLinha, campo, ',');
+		umRegistro.data_value = campo.empty() ? -1 : stoi(campo); // verifica se esta vazio, transforma string em int
+
+        ler_linha(streamLinha, umRegistro.status,sizeof(umRegistro.status));
+        ler_linha(streamLinha, umRegistro.units,sizeof(umRegistro.units));
+
+		// campo int: magnitude
+		getline(streamLinha, campo, ',');
+		umRegistro.magnitude = campo.empty() ? -1 : stoi(campo); // verifica se esta vazio, transforma string em int
+
+        ler_linha(streamLinha, umRegistro.subject,sizeof(umRegistro.subject));
+        ler_linha(streamLinha, umRegistro.group,sizeof(umRegistro.group));
+        ler_linha(streamLinha, umRegistro.series_title_1,sizeof(umRegistro.series_title_1));
+        ler_linha(streamLinha, umRegistro.series_title_2,sizeof(umRegistro.series_title_2));
+        ler_linha(streamLinha, umRegistro.series_title_3,sizeof(umRegistro.series_title_3));
+        ler_linha(streamLinha, umRegistro.series_title_4,sizeof(umRegistro.series_title_4));
+		ler_linha(streamLinha, umRegistro.series_title_5,sizeof(umRegistro.series_title_5), '\n'); // o último campo não tem vírgula
 
         int indiceArquivo = contadorLinhas % numPartes;
         arqSaidaBin[indiceArquivo].write(reinterpret_cast<const char*>(&umRegistro), sizeof(Registro));
@@ -68,10 +87,10 @@ void dividir_CSV_em_PartesBinarias()
 {	
 	
 	// 1. definir partes divididas e abrir arquivo
-	const int numPartes = 11;
+	const int numPartes = 12;
 	const string nomeBase = "parte_F";
 	
-	ifstream arqEntradaCSV("dados.csv");
+	ifstream arqEntradaCSV("dados_trabalho.csv");
     if (!arqEntradaCSV.is_open()) {
         throw runtime_error("Nao foi possivel abrir o arquivo!");
     }
@@ -121,4 +140,4 @@ int main ()
 	
 	
 return 0;
-};
+}
