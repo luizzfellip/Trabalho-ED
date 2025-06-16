@@ -10,11 +10,14 @@
 #include <cstring>
 #include <sstream>
 #include <stdexcept>
+#include <chrono> // so para ver o tempo de execucao do programa
 using namespace std;
+using namespace chrono;
 
-	// Definicao do numero de arquivos divididos  e nomes dos arquivos
+// Constantes globais
 	const int numPartes = 13;
 	const string nomeBaseAqr = "parte_F";
+	
 struct Registro
 {
 		char series_reference[10];
@@ -32,6 +35,7 @@ struct Registro
 		char series_title_5[50];
 };
 
+//le linha e joga no determinado determinado campo do Registrador
 void ler_linha(stringstream& streamLinha, char* destinoReg,int tamC_max, char delimitador = ',')
 {
 	string campo;
@@ -65,7 +69,7 @@ void distribuidor_TCG(ifstream& arqEntradaCSV,ofstream* arqSaidaBin,int numParte
 
 		// campo int: data_value
 		getline(streamLinha, campo, ',');
-		umRegistro.data_value = campo.empty() ? -1 : stoi(campo); // verifica se esta vazio, transforma string em int
+		umRegistro.data_value = campo.empty() ? -1.0f : stof(campo); // verifica se esta vazio, transforma string em int
 
         ler_linha(streamLinha, umRegistro.status,sizeof(umRegistro.status));
         ler_linha(streamLinha, umRegistro.units,sizeof(umRegistro.units));
@@ -93,7 +97,7 @@ void dividir_CSV_em_PartesBinarias()
 {	
 
 	// 1. verificar se o arquivo esta na mesma pasta do codigo
-	ifstream arqEntradaCSV("dados_trabalho.csv");
+	ifstream arqEntradaCSV("dados.csv");
     if (!arqEntradaCSV.is_open()) {
         throw runtime_error("Nao foi possivel abrir o arquivo!");
     }else{
@@ -149,14 +153,16 @@ void intercala(Registro v[], long p, long q, long r)
     Registro* aux = new Registro[tamanho]; // vetor auxiliar
     long k = 0;
     while((i < q) and (j <= r)){                
-		// verifica se v[i] - v[j] > 0, se sim v[i] > v[j]
+		
+	// verifica se v[i] - v[j] > 0, se sim v[i] > v[j]
        if(strcmp(v[i].series_reference,v[j].series_reference) > 0){
            aux[k++] = v[i++];
 		}else{ 
 			aux[k++] = v[j++];
 		}
-	} 
-// terminou um dos vetores, agora copia o outro
+	}
+	 
+	// terminou um dos vetores, agora copia o outro
 	while (i < q) {
    		aux[k++] = v[i++];
 	}   
@@ -220,13 +226,24 @@ void ordenar_partes_internamente()
 
 int main ()
 {
+	auto start = steady_clock::now();
+	
 	try{
-	dividir_CSV_em_PartesBinarias();
-	ordenar_partes_internamente();
+	// Primeiro Passo: dividir o csv em arquivos binarios nao ordenados
+		dividir_CSV_em_PartesBinarias();
+		
+	// Segundo Passo: ordenar cada arquivo em binario
+		ordenar_partes_internamente();
+		
+	// Terceiro Passo: Merge Multi-way ...
+	
 	} catch (exception& e) {
 		cout << "Erro: "<< e.what() << endl;
 	}
 	
 	
+	auto end = steady_clock::now();
+	auto elapsed = end - start;
+	cout << duration<double>{elapsed}.count() << "s\n";
 return 0;
 }
