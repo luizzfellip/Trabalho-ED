@@ -1,9 +1,10 @@
 
-// 1- modifiquei o tamanho dos registros e a parte da distruibuicao dos arquivos
+// 1- Modifiquei o tamanho dos registros e a parte da distruibuicao dos arquivos
 // para que aceite o int e o float.
 
 // 2- Implementei o merge sort interno,falta implementar depois o merge multi way.
 
+// 3- Terminei de implementar o Merge multi way, falta a adicao/remocao/imprimir
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -17,7 +18,7 @@ using namespace chrono;
 // Constantes globais
 	const int numPartes = 16;
 	const string nomeBaseAqr = "run_ordenada_";
-	const int numVias = 2;
+	const int k = 4;
 	
 struct Registro
 {
@@ -35,6 +36,10 @@ struct Registro
 		char series_title_4[51];
 		char series_title_5[51];
 };
+
+// ====================================================================
+//	Primeira Parte: Didivir em n arquivos e transformar em binario
+// ====================================================================
 
 //le linha e joga no determinado determinado campo do Registrador
 void ler_linha(stringstream& streamLinha, char* destinoReg,int tamC_max, char delimitador = ',')
@@ -102,7 +107,7 @@ void dividir_CSV_em_PartesBinarias()
     if (!arqEntradaCSV.is_open()) {
         throw runtime_error("Nao foi possivel abrir o arquivo!");
     }else{
-		cout << "Iniciando a divisao dos arquivos!\n";
+		cout << "Iniciando a divisao dos arquivos...\n";
 	}
 	
 	// 2. criar as partes divididas
@@ -136,6 +141,11 @@ void dividir_CSV_em_PartesBinarias()
     cout << "Arquivo dividido em binario com sucesso!\n";
 
 }
+
+
+// ====================================================================
+//	Segunda Parte: Ordenar esses pequenos arquivos na memoria
+// ====================================================================
 
 long long tamanho_Registro(const string& nomeArquivo)
 {
@@ -194,7 +204,7 @@ void mergeSortIterativo(Registro v[], long tam)
 
 void ordenar_partes_internamente()
 {
-	cout << "Iniciando a ordenacao interna dos arquivos!\n";
+	cout << "Iniciando a ordenacao interna dos arquivos...\n";
 
 	// 1. alocar na memoria um array com os mesmos numeros de registros
 	for(int i=0; i<numPartes; i++){
@@ -224,34 +234,39 @@ void ordenar_partes_internamente()
 	cout << "Ordenacao interna concluida!\n";
 }
 
+// ====================================================================
+//	Terceira Parte: Intercalar Externamente
+// ====================================================================
+
 void intercalar_grupo_de_arquivos(string* nomesArquivosEntrada, int numArquivos, const string& nomeArquivoSaida)
 {
-    if (numArquivos <= 0) return; // Não há nada a fazer
+    if (numArquivos <= 0){
+		throw runtime_error("Nenhum arquivo chamado para intercalacaO!");
+	}
 
-    // 1. Alocar e abrir os arquivos de entrada
+    // 1. alocar e abrir os arquivos de entrada
     ifstream* arqsEntrada = new ifstream[numArquivos];
     for (int i = 0; i < numArquivos; ++i) {
         arqsEntrada[i].open(nomesArquivosEntrada[i], ios::binary);
         if (!arqsEntrada[i].is_open()) {
-            // Limpeza antes de lançar o erro
             delete[] arqsEntrada;
-            throw runtime_error("Nao foi possivel abrir um arquivo de entrada para intercalacao: " + nomesArquivosEntrada[i]);
+			throw runtime_error("Nao foi possivel abrir o arquivo de entrada para intercalacao!");
         }
     }
 
-    // 2. Abrir o arquivo de saída
+    // 2. abrir o arquivo de saída
     ofstream arqSaida(nomeArquivoSaida, ios::binary | ios::trunc);
     if (!arqSaida.is_open()) {
-        delete[] arqsEntrada; // Limpeza
-        throw runtime_error("Nao foi possivel criar o arquivo de saida da intercalacao: " + nomeArquivoSaida);
+        delete[] arqsEntrada;
+        throw runtime_error("Nao foi possivel criar o arquivo de saida da intercalacao!");
     }
 
-    // 3. Buffers para os registros e controle dos arquivos
+    // 3. buffers para os registros e controle dos arquivos
     Registro* buffer = new Registro[numArquivos];
     bool* arquivoAtivo = new bool[numArquivos];
-    int arquivosRestantes = 0; // Contador que controlará o laço while
+    int arquivosRestantes = 0;
 
-    // 4. Ler o primeiro registro de cada arquivo e inicializar o controle
+    // 4. ler o primeiro registro de cada arquivo e inicializar o controle
     for (int i = 0; i < numArquivos; ++i) {
         if (arqsEntrada[i].read(reinterpret_cast<char*>(&buffer[i]), sizeof(Registro))) {
             arquivoAtivo[i] = true;
@@ -261,12 +276,12 @@ void intercalar_grupo_de_arquivos(string* nomesArquivosEntrada, int numArquivos,
         }
     }
 
-    // 5. Loop principal de intercalação, controlado pelo contador
+    // 5. loop principal de intercalação, controlado pelo contador
     while (arquivosRestantes > 0) {
         int indiceMenor = -1;
         Registro menorRegistro;
 
-        // Encontra o menor registro entre os que estão no buffer
+        // encontra o menor registro entre os que estão no buffer
         for (int i = 0; i < numArquivos; ++i) {
             if (arquivoAtivo[i]) {
                 if (indiceMenor == -1 || strcmp(buffer[i].series_reference, menorRegistro.series_reference) < 0) {
@@ -275,19 +290,17 @@ void intercalar_grupo_de_arquivos(string* nomesArquivosEntrada, int numArquivos,
                 }
             }
         }
-        
-        // Se indiceMenor != -1 (sempre será, pois arquivosRestantes > 0), continua
-        // Escreve o menor registro no arquivo de saída
+
         arqSaida.write(reinterpret_cast<const char*>(&menorRegistro), sizeof(Registro));
 
-        // Lê o próximo registro do arquivo de onde o menor veio
+        // le o próximo registro do arquivo de onde o menor veio
         if (!arqsEntrada[indiceMenor].read(reinterpret_cast<char*>(&buffer[indiceMenor]), sizeof(Registro))) {
             arquivoAtivo[indiceMenor] = false; // Arquivo acabou
             arquivosRestantes--; // Decrementa o contador, pois um arquivo terminou
         }
     }
 
-    // 6. Fechar todos os arquivos e liberar a memória
+    // 6. fecha todos os arquivos e libera a memoria
     arqSaida.close();
     for (int i = 0; i < numArquivos; ++i) {
         arqsEntrada[i].close();
@@ -298,30 +311,27 @@ void intercalar_grupo_de_arquivos(string* nomesArquivosEntrada, int numArquivos,
     delete[] arquivoAtivo;
 }
 
-void intercalacao_multi_caminhos()
+void intercalacao_multi_caminhos() // distribuidor
 {
-    cout << "Iniciando intercalacao com " << numVias << " vias...\n";
+    cout << "Iniciando intercalacao com " << k << " f...\n";
 
-    // Lista inicial com os 16 arquivos ordenados
+	// 1. cria uma lista de string com o nome dos meus arquivos
     int numArquivosFonte = numPartes;
     string* arquivosFonte = new string[numArquivosFonte];
-    for (int i = 0; i < numArquivosFonte; ++i) {
+    for (int i = 0; i < numArquivosFonte; i++) {
         arquivosFonte[i] = nomeBaseAqr + to_string(i) + ".bin";
     }
 
     int passo = 1;
-    // O laço continua enquanto houver mais de um arquivo para intercalar
+    // 2. intercala os arquivos ate houver apenas 1 arquivo
     while (numArquivosFonte > 1) {
-        cout << "Iniciando passo de intercalacao " << passo 
-             << ". Arquivos para processar: " << numArquivosFonte << endl;
-        
-        int numArquivosDestino = (numArquivosFonte + numVias - 1) / numVias; // Cálculo do teto da divisão
+        int numArquivosDestino = (numArquivosFonte + k - 1) / k; // Cálculo do teto da divisão
         string* arquivosDestino = new string[numArquivosDestino];
         int contadorArquivoSaida = 0;
 
-        // Itera sobre os arquivos fonte em grupos de 'numVias'
-        for (int i = 0; i < numArquivosFonte; i += numVias) {
-            int tamanhoGrupo = min(numVias, numArquivosFonte - i);
+        // itera sobre os arquivos fonte em grupos de 'k'
+        for (int i = 0; i < numArquivosFonte; i += k) {
+            int tamanhoGrupo = min(k, numArquivosFonte - i);
             
             // O grupo a ser intercalado é um sub-array de arquivosFonte
             // apontando para arquivosFonte[i]
@@ -337,25 +347,25 @@ void intercalacao_multi_caminhos()
             contadorArquivoSaida++;
         }
 
-        // Limpa os arquivos do passo anterior
+        // limpa os arquivos do passo anterior
         for (int i = 0; i < numArquivosFonte; i++) {
             remove(arquivosFonte[i].c_str());
         }
         delete[] arquivosFonte; // Libera memória do array de nomes antigo
 
-        // Os arquivos de destino agora são a fonte para o próximo passo
+        // os arquivos de destino agora são a fonte para o próximo passo
         arquivosFonte = arquivosDestino;
         numArquivosFonte = numArquivosDestino;
         passo++;
     }
 
-    // Ao final, sobrará apenas um arquivo na lista, que é o resultado final
+    // ao final, sobrará apenas um arquivo na lista, que é o resultado final
     if (numArquivosFonte == 1) {
         string nomeFinal = "dados_ordenados.bin";
         rename(arquivosFonte[0].c_str(), nomeFinal.c_str());
-        cout << "Intercalacao concluida! Arquivo final: " << nomeFinal << endl;
+        cout << "Intercalacao concluida!\n";
     } else {
-        cout << "Nenhum arquivo final gerado. Verifique o processo." << endl;
+        throw runtime_error("Nenhum arquivo final gerado!");
     }
     
     // Libera a memória do último array de nomes de arquivo
