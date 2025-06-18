@@ -5,12 +5,14 @@
 #include <sstream>
 #include <stdexcept>
 #include <chrono> // so para ver o tempo de execucao do programa
+#include <cmath> // tamanho dos arquivos na rodada
 using namespace std;
 using namespace chrono;
 
 // Constantes globais
 	const int numPartes = 16;
-	const string nomeBaseAqr = "f_";
+	const string nomeBaseAqrF = "f_";
+	const string nomeBaseAqrS = "s_";
 struct Registro
 {
 		char series_reference[11];
@@ -45,6 +47,7 @@ void ler_linha(stringstream& streamLinha, char* destinoReg,int tamC_max, char de
 void distribuidor_TCG(ifstream& arqEntradaCSV,ofstream* arqSaidaBin,int numPartes)
 {
 	long long contadorLinhas = 0;
+	long long totalBytsGravados = 0;
 	string linha;
 	
 	while(getline(arqEntradaCSV, linha)){
@@ -87,7 +90,10 @@ void distribuidor_TCG(ifstream& arqEntradaCSV,ofstream* arqSaidaBin,int numParte
         arqSaidaBin[indiceArquivo].write(reinterpret_cast<const char*>(&umRegistro), sizeof(Registro));
 
         contadorLinhas++;
+		totalBytsGravados += sizeof(Registro);
     }
+    ofstream arqInfo("Tamanho_total_bytes.txt"); // vai ser util na hora da intercalacao
+    arqInfo << totalBytsGravados; 
 }
 
 void dividir_CSV_em_PartesBinarias()
@@ -104,7 +110,7 @@ void dividir_CSV_em_PartesBinarias()
 	// 2. criar as partes divididas
 	ofstream* arqSaidaBin = new ofstream[numPartes];
 	for(int i=0; i<numPartes; i++){
-		string nomeArq = nomeBaseAqr +  to_string(i) + ".bin";
+		string nomeArq = nomeBaseAqrF +  to_string(i) + ".bin";
 		arqSaidaBin[i].open(nomeArq, ios::binary | ios::trunc);
 		
 		if(!arqSaidaBin[i].is_open()){
@@ -124,7 +130,7 @@ void dividir_CSV_em_PartesBinarias()
     arqEntradaCSV.close();
     for (int i = 0; i < numPartes; ++i) {
         arqSaidaBin[i].close();
-    }intercalacao_multi_caminhos
+    }
     
     // 6. liberar a memória alocada para o array de arquivos
     delete[] arqSaidaBin;
@@ -137,17 +143,108 @@ void dividir_CSV_em_PartesBinarias()
 //	Segunda  Parte: Intercalar Externamente
 // ====================================================================
 
-void intercalacao_multi_caminhos() // distribuidor
+bool procura_maior(ifstream arqF[],ofstream arqS[],int rodada = 0)
 {
-	// 1. abrir para leitura as partes divididas
-	ifstream* arqF = new ofstream[numPartes];
-	for(int i=0; i<numPartes; i++){
-		arqF[i].open(nomeArq, ios::binary);
+	Registro buffer[numPartes]; // armazena o registro atual de cada arquivo
+	bool comValor[numPartes];	// marca quais arquivos ainda tem registros
+ 	int QteArqComValor = 0;
+ 	int tamIncrementado = 0;
+	
+	// 1. le o primeiro registro de cada arquivo
+	for(int i=0; i< numPartes; i++){
+		if(arqF[i].read(reinterpret_cast<char*>(&buffer[i]),sizeof(Registro))){
+			comValor[i] = true;
+			QteArqComValor++;
+		}else{
+			comValor[i] = false;
+		}
+	}	
+	// 2. enquanto houver arquivos com registros
+	while((QteArqComValor > 0) && (tamIncrementado != tamFinal)){
+		int posMaior = -1;
+		
+		// encontra o maior entre os buffers
+		for (int i=0; i < numPartes; i++){
+			if((comValor[i])){
+				if(posMaior == -1 || strcmp(buffer[i].series_reference, buffer[posMaior].series_reference) >= 0){
+					posMaior = i;
+				}
+			}
+		}
+	// 3. escreve o maior na saida	
+		arqS[0].write(reinterpret_cast<char*>(&buffer[posMaior]),sizeof(Registro));
+		if(!arqF[posMaior].read(reinterpret_cast<char*>(&buffer[posMaior]),sizeof(Registro))){
+			comValor[posMaior] = false;
+			QteArqComValor--;
+		}
+		tamIncrementado++;
+	}
+	// Fechar arquivos
+	for (int i = 0; i < numPartes; i++) {
+		arqF[i].close();
+		arqS[i].close();
 	}
 	
+	ifstream testeFinalF((nomeBaseAqrF + "0.bin"), ios::binary | ios::ate);
+	ifstream testeFinalS((nomeBaseAqrS + "0.bin"), ios::binary | ios::ate);
+    long long tamF_F = testeFinalF.tellg();
+    long long tamF_S = testeFinalS.tellg();
 
+	testeFinalF.close();
+	testeFinalS.close();
+	
+	ifstream arqInfo("Tamanho_total_bytes.txt");
+	long long tamanhoEsperado;
+	info >> tamanhoEsperado;
+	info.close();
+   // se o arquivo 0 contém todos os registros (exemplo: conhecido total)
+   if (tamF_F == tamanhoEsperado || tamF_S == tamanhoEsperado){
+		ordenado = true;
+		cout << "Arquivo ordenado final gerado!\n";
+	}
+}
 
-
+void intercalacao_multi_caminhos() // distribuidor
+{
+	cout << "Iniciando intercalacao...\n";
+	
+	int rodada = 0;
+	bool ordenado = false;
+	
+	while(!ordenado){
+		// 1. alternar os papeis dos arquivos entre as rodadas por meio do prefixo das chamadas
+		string papel_f = (rodada % 2 == 0) ? nomeBaseAqrF : nomeBaseAqrS;
+		string papel_s = (rodada % 2 == 0) ? nomeBaseAqrS : nomeBaseAqrF;
+		
+		// 2. abrir para leitura das partes divididas
+		ifstream* arqLeitura = new ifstream[numPartes];
+		for(int i=0; i<numPartes; i++){
+			string nome = papel_f +  to_string(i) + ".bin";
+			arqLeitura[i].open(nome, ios::binary);
+		}
+		
+		// 3. abrir para escrita das partes divididas
+		ofstream* arqEntrada = new ofstream[numPartes];
+		for(int i=0; i<numPartes; i++){
+			string nome = papel_s +  to_string(i) + ".bin";
+			arqEntrada[i].open(nome, ios::binary | ios::trunc);
+		}
+		
+		
+		// 4. realizar a intercalacao
+		ordenado = procura_maior(arqLeitura, arqEntrada,rodada);
+		// 5. liberar memoria
+		for(int i=0; i<numPartes; i++){
+			arqLeitura[i].close();
+			arqEntrada[i].close();
+		}
+		
+		delete [] arqLeitura;
+		delete [] arqEntrada;
+	
+		rodada++;
+	}
+	cout << "Intercalacao realizada com sucesso!\n";
 }
 
 int main ()
